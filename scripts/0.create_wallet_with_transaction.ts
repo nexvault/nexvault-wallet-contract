@@ -83,13 +83,14 @@ async function main() {
     console.log(`${ethers.utils.verifyTypedData(domain, types, txData, sig0)}`);
     console.log(`${ethers.utils.verifyTypedData(domain, types, txData, sig1)}`);
 
+    const sortedSignatures = signatures.sort((a: any, b: any) => a.signer - b.signer);
     const transaction = await walletFactory.createMultiSigWalletWithTransaction(
         walletImplementation.address,
         owners,
         required,
         nonce,
         txData,
-        signatures
+        sortedSignatures
     );
     const receipt = await transaction.wait();
     const event = receipt.events?.find((event: { event: string; }) => event.event === 'NewMultiSigWalletCreated');

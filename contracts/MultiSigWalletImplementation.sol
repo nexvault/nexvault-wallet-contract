@@ -515,41 +515,39 @@ contract MultiSigWalletImplementation {
         return true;
     }
 
-    function batchSignature(
-        Transaction memory transaction,
-        Signature[] memory signatureList
-    ) public returns (bool isOK) {
-        require(signatureList.length >= required, "invalid signature data length");
-
-        uint transactionId = transaction.nonce;
-        for (uint i = 0; i < signatureList.length; i++) {
-            Signature memory signature = signatureList[i];
+    function batchSignature(Transaction memory txn, Signature[] memory sortedSignatures) public returns (bool isOK) {
+        require(sortedSignatures.length >= required, "invalid signature data length");
+        uint256 txId = txn.nonce;
+        address lastOwner = address(0);
+        for(uint i = 0; i < sortedSignatures.length; i++) {
+            Signature memory signature = sortedSignatures[i];
             address signer = signature.signer;
-            require(isVerify(transaction, signature));
-            if (isOwner[signer]) {
-                // addTx
-                if (transactions[transactionId].destination == address(0)) {
-                    _addTransaction(
-                        transaction.nonce,
-                        transaction.destination,
-                        transaction.value,
-                        transaction.data
-                    );
-                }
+            uint8 v = signature.v;
+            bytes32 r = signature.r;
+            bytes32 s = signature.s;
+            bytes32 digest = keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    DOMAIN_SEPARATOR,
+                    hashTransaction(txn)
+                )
+            );
+            address currentOwner = ecrecover(digest, v, r, s);
 
-                if (transactions[transactionId].destination == transaction.destination
-                    && transactions[transactionId].nonce == transaction.nonce
-                    && transactions[transactionId].value == transaction.value
-                    && keccak256(abi.encodePacked(transactions[transactionId].data)) == keccak256(transaction.data)
-                ) {
-                    // confirm
-                    _confirmTransaction(transactionId, signer);
-                }
-            }
+            // to save gas, must need signature.signer sorted
+            require(currentOwner > lastOwner && isOwner[currentOwner] && signer == currentOwner, "error-sig");
+            lastOwner = currentOwner;
+            emit Confirmation(signer, txId);
         }
-        // execute
-        _executeTransaction(transactionId);
-        return true;
+        txn.executed = true;
+        if (external_call(txn.destination, txn.value, txn.data.length, txn.data)) {
+            emit Execution(txId);
+        } else {
+            emit ExecutionFailure(txId);
+            txn.executed = false;
+        }
+
+        return txn.executed;
     }
 
     struct Call {

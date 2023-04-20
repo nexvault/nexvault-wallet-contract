@@ -99,9 +99,10 @@ async function main() {
 
     const walletImpl = walletImplementation.attach(walletAddress);
 
+    const sortedSignatures = signatures.sort((a: any, b: any) => a.signer - b.signer);
     const transaction = await walletImpl.batchSignature(
         txData,
-        signatures
+        sortedSignatures
     );
     const receipt = await transaction.wait();
     console.log('Transaction Hash:', receipt.transactionHash);
