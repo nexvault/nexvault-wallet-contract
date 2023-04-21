@@ -491,14 +491,13 @@ contract MultiSigWalletImplementation {
         }
 
         txn.executed = true;
-
+        txNonces[digest] = true;
         if (external_call(txn.destination, txn.value, txn.data.length, txn.data)) {
             emit Execution(txId);
         } else {
             emit ExecutionFailure(txId);
             txn.executed = false;
         }
-        txNonces[digest] = true;
 
         return txn.executed;
     }
