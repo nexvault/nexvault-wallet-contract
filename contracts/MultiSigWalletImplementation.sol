@@ -28,6 +28,8 @@ contract MultiSigWalletImplementation {
     mapping(uint => Transaction) public transactions;
     mapping(uint => mapping(address => bool)) public confirmations;
     mapping(address => bool) public isOwner;
+    mapping(bytes32 => bool) public txNonces;
+
     address[] public owners;
     uint public required;
     uint public transactionCount;
@@ -235,19 +237,6 @@ contract MultiSigWalletImplementation {
         executeTransaction(transactionId);
     }
 
-    function _confirmTransaction(
-        uint transactionId,
-        address owner
-    )
-        internal
-        ownerExists(owner)
-        transactionExists(transactionId)
-        notConfirmed(transactionId, owner)
-    {
-        confirmations[transactionId][owner] = true;
-        emit Confirmation(owner, transactionId);
-    }
-
     /// @dev Allows an owner to revoke a confirmation for a transaction.
     /// @param transactionId Transaction ID.
     function revokeConfirmation(
@@ -364,30 +353,6 @@ contract MultiSigWalletImplementation {
         }
     }
 
-    function _addTransaction(
-        uint transactionId,
-        address destination,
-        uint value,
-        bytes memory data
-    ) internal notNull(destination) returns (uint _transactionId) {
-        if(transactions[transactionId].destination == address(0)) {
-            transactions[transactionId] = Transaction({
-                nonce: transactionId,
-                destination: destination,
-                value: value,
-                data: data,
-                executed: false
-            });
-            transactionCount += 1;
-
-            emit Submission(transactionId);
-
-            return transactionId;
-        } else {
-            revert("transactionId already exist");
-        }
-    }
-
     /*
      * Web3 call functions
      */
@@ -496,27 +461,18 @@ contract MultiSigWalletImplementation {
         return digest;
     }
 
-    function isVerify(
-        Transaction memory transaction,
-        Signature memory signature
-    ) public view returns (bool isOK) {
-        address signer = signature.signer;
-        uint8 v = signature.v;
-        bytes32 r = signature.r;
-        bytes32 s = signature.s;
+    function batchSignature(Transaction memory txn, Signature[] memory sortedSignatures) public returns (bool isOK) {
+        require(sortedSignatures.length >= required, "invalid signature data length");
+
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\x19\x01",
                 DOMAIN_SEPARATOR,
-                hashTransaction(transaction)
+                hashTransaction(txn)
             )
         );
-        require(signer == ecrecover(digest, v, r, s), "invalid-signature");
-        return true;
-    }
+        require(!txNonces[digest], "tx-executed");
 
-    function batchSignature(Transaction memory txn, Signature[] memory sortedSignatures) public returns (bool isOK) {
-        require(sortedSignatures.length >= required, "invalid signature data length");
         uint256 txId = txn.nonce;
         address lastOwner = address(0);
         for(uint i = 0; i < sortedSignatures.length; i++) {
@@ -525,13 +481,7 @@ contract MultiSigWalletImplementation {
             uint8 v = signature.v;
             bytes32 r = signature.r;
             bytes32 s = signature.s;
-            bytes32 digest = keccak256(
-                abi.encodePacked(
-                    "\x19\x01",
-                    DOMAIN_SEPARATOR,
-                    hashTransaction(txn)
-                )
-            );
+
             address currentOwner = ecrecover(digest, v, r, s);
 
             // to save gas, must need signature.signer sorted
@@ -539,13 +489,16 @@ contract MultiSigWalletImplementation {
             lastOwner = currentOwner;
             emit Confirmation(signer, txId);
         }
+
         txn.executed = true;
+
         if (external_call(txn.destination, txn.value, txn.data.length, txn.data)) {
             emit Execution(txId);
         } else {
             emit ExecutionFailure(txId);
             txn.executed = false;
         }
+        txNonces[digest] = true;
 
         return txn.executed;
     }
