@@ -14,7 +14,7 @@ npm i
 
 ### III. Run Hardhat node
 ```shell
-npx hardhat complie
+npx hardhat compile
 npx hardhat node
 ```
 
@@ -78,7 +78,7 @@ MultiSigWalletProxy: `0x0CfcF5A8F5A24F25B553E244B927ddf9315d2d78`
 Commands:
 
 ```shell
-hh --network localhost create-wallet \
+npx hardhat --network localhost create-wallet \
     --factory 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
     --implementation 0xCafac3dD18aC6c6e92c921884f9E4176737C052c \
     --owners 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
@@ -110,10 +110,10 @@ npx hardhat --network localhost run scripts/1.call_wallet_transferETH.ts
 npx hardhat --network localhost run scripts/2.call_wallet_multicall.ts
 
 # Process addOwner from MultiSigWallet with batchSignature method
-npx hardhat --network localhost run scripts/2.call_wallet_addowner.ts
+npx hardhat --network localhost run scripts/3.call_wallet_addowner.ts
 
 # Process removeOwner from MultiSigWallet with batchSignature method
-npx hardhat --network localhost run scripts/2.call_wallet_removerowner.ts
+npx hardhat --network localhost run scripts/4.call_wallet_removeowner.ts
 ```
 
 ### VI. Deployed Addresses
