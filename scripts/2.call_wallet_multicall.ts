@@ -54,7 +54,7 @@ async function main() {
 
     const multiCallData = targetContract.interface.encodeFunctionData("multiCall", [calls]);
     console.log("multiCall function data:", multiCallData);
-    
+
     const txData = {
         nonce: 2,
         destination: '0x0CfcF5A8F5A24F25B553E244B927ddf9315d2d78',

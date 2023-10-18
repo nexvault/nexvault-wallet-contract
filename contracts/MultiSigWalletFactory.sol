@@ -32,7 +32,7 @@ contract MultiSigWalletFactory {
 
         return wallet;
     }
-    
+
     function calculateMultiSigWalletAddress(
         address _implementation,
         address[] memory owners,

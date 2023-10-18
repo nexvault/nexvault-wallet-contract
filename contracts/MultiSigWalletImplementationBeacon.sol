@@ -15,7 +15,7 @@ contract MultiSigWalletImplementationBeacon {
         owners[0] = msg.sender;
 
         implementation.initialize(owners, 1);
-        
+
         emit MultiSigWalletImplementationDeployed(address(implementation));
     }
 }
