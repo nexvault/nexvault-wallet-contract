@@ -1,109 +1,91 @@
-import { ethers } from "hardhat";
+import { ethers, deployments } from "hardhat";
+import { signTypedData } from "./utils/general";
+import { Address } from "hardhat-deploy/types";
+import { saltNonce } from "./utils/constants";
+import { getNXVSingleton, getFactory } from "../test/utils/setup";
 
 async function main() {
-    const walletFactory = await ethers.getContractAt("MultiSigWalletFactory", "0x5FbDB2315678afecb367f032d93F642f64180aa3");
-    const walletImplementation = await ethers.getContractAt("MultiSigWalletImplementation", "0xCafac3dD18aC6c6e92c921884f9E4176737C052c");
-    
-    const accounts = await ethers.getSigners();
-    const owners = [
-        accounts[0].address,
-        accounts[1].address
-    ];
-    const required = 2;
-    const nonce = 1;
-    const walletAddress = await walletFactory.calculateMultiSigWalletAddress(
-        walletImplementation.address,
-        owners,
-        required,
-        nonce
-    );
-    console.log('MultiSigWalletProxy will be deployed to:', walletAddress);
-    
-    console.log('Sending 0.1 Ether to this MultiSigWallet contract will be deployed...');
-    
-    await accounts[0].sendTransaction({
-        to: walletAddress,
-        value: ethers.utils.parseEther('0.1')
+    const setupTests = deployments.createFixture(async ({ deployments }) => {
+        await deployments.fixture(); // 这将会运行所有的部署合约脚本
+        // const multiSigWalletContract = await ethers.getContract('MultiSigWallet');
+        // let multiSigWallet = await multiSigWalletContract.deployed();
     });
+    await setupTests();
+    // Set up the ethers signer
+    const [deployer, user] = await ethers.getSigners();
+    // Parameters for the createMultiSigWallet function
     
-    const { chainId } = await ethers.provider.getNetwork();
-    const domain = {
-        name: 'MultiSigWallet',
-        version: '2',
-        chainId: chainId,
-        verifyingContract: walletAddress
-    };
-    const types = {
-        Transaction: [
-            { name: "nonce", type: "uint" },
-            { name: "destination", type: "address" },
-            { name: "value", type: "uint" },
-            { name: "data", type: "bytes" },
-        ]
-    };
+    const factory: any = await getFactory();
+    const singleton = await getNXVSingleton();
+    const singletonAddress: Address = await singleton.getAddress(); // Address of the singleton
+
+    // const initializer = ethers.utils.toUtf8Bytes("YOUR_INITIALIZER_DATA_HERE"); // Initializer data (could be the encoded constructor parameters)
+    const initializer: string = singleton.interface.encodeFunctionData("initialize", [
+        [deployer.address, user.address],
+        2,
+        "0x542a2e3c52E8C78300906ec29786a9E8dE33C4B9", // CompatibilityFallbackHandler
+    ])
+
+    const amount = ethers.parseEther('0.00001');
+
+    const walletAddress = await factory.calculateMultiSigWalletAddress(
+        singletonAddress,
+        initializer,
+        saltNonce
+    );
+    console.log('MultiSigWalletProxy will be deployed to:', walletAddress, "\n");
+    
+    console.log('Sending 0.0001 Ether to this MultiSigWallet contract will be deployed...', "\n");
+        await deployer.sendTransaction({
+        to: walletAddress,
+        value: ethers.parseEther('0.0001')
+    });
 
     const txData = {
-        nonce: 0,
-        destination: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-        value: ethers.utils.parseEther('0.001'),
+        destination: deployer.address,
+        value: amount,
         data: "0x",
+        operation: 0,
+        nonce: saltNonce,
     };
 
-    const signatures = [];
+    const sortedSignatures: any = await signTypedData(txData, walletAddress);
 
-    const sig0 = await accounts[0]._signTypedData(domain, types, txData);
-    const sig0_params = ethers.utils.splitSignature(sig0);
-    const sig0_r = sig0_params.r;
-    const sig0_s = sig0_params.s;
-    const sig0_v = sig0_params.v;
-    signatures.push({
-        signer: accounts[0].address,
-        r: sig0_r,
-        s: sig0_s,
-        v: sig0_v
-    })
-
-    const sig1 = await accounts[1]._signTypedData(domain, types, txData);
-    const sig1_params = ethers.utils.splitSignature(sig1);
-    const sig1_r = sig1_params.r;
-    const sig1_s = sig1_params.s;
-    const sig1_v = sig1_params.v;
-    signatures.push({
-        signer: accounts[1].address,
-        r: sig1_r,
-        s: sig1_s,
-        v: sig1_v
-    })
-
-    console.log(`Signer ${owners[0]} signature is: ${sig0}`);
-    console.log(`${sig0_r}, ${sig0_s}, ${sig0_v}`);
-    console.log(`Signer ${owners[1]} signature is: ${sig1}`);
-    console.log(`${sig1_r}, ${sig1_s}, ${sig1_v}`);
-
-    console.log(`${ethers.utils.verifyTypedData(domain, types, txData, sig0)}`);
-    console.log(`${ethers.utils.verifyTypedData(domain, types, txData, sig1)}`);
-
-    const sortedSignatures = signatures.sort((a: any, b: any) => a.signer - b.signer);
-    const transaction = await walletFactory.createMultiSigWalletWithTransaction(
-        walletImplementation.address,
-        owners,
-        required,
-        nonce,
-        txData,
+    
+    // Call the createMultiSigWallet function
+    const tx = await factory.createMultiSigWalletWithTransaction(
+        singletonAddress, 
+        initializer, 
+        saltNonce,
+        ...Object.values(txData),
         sortedSignatures
     );
-    const receipt = await transaction.wait();
-    const event = receipt.events?.find((event: { event: string; }) => event.event === 'NewMultiSigWalletCreated');
-    const walletAddress2 = event?.args[0];
-    console.log('MultiSigWalletProxy deployed to:', walletAddress2);
-    console.log('Deployment Hash:', receipt.transactionHash);
+    const receipt = await tx.wait();
 
-    const gasUsed = receipt.gasUsed;
+    console.log('MultiSigWallet proxy contract deployed at:', receipt?.logs[0].address, "\n");
+    console.log('TransactionHash:', receipt?.hash, "\n");
+    console.log('GasUsed:', receipt?.gasUsed.toString(), "\n");
 
-    console.log('Transaction gasUsed:', gasUsed.toString());
+    // console.log('receipt:', receipt, "\n");
+
+    // console.log('Transaction Log:', receipt?.logs, "\n");
+
+    // console.log('Transaction Hash:', receipt?.logs.length, "\n");
+
+    // console.log('Transaction log0:', receipt?.logs[0], "\n");
+
+    // console.log('Transaction log1:', receipt?.logs[1], "\n");
+
+    // Parse the event to get the proxy address
+    // const event = receipt.event.find((event: { event: string; }) => event.event === "NewMultiSigWalletCreated");
+    // const proxyAddress = event.args.wallet;
+
+    // console.log(`MultiSigWallet proxy contract deployed at: ${proxyAddress}`);
 }
 
-main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+main()
+    .then(() => process.exit(0))
+    .catch(error => {
+        console.error(error);
+        process.exit(1);
+    });

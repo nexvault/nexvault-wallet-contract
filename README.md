@@ -4,7 +4,7 @@ MultiSig Wallet based [GnosisSafe Wallet(old)](https://github.com/gnosis/MultiSi
 
 ### I. Architecture
 
-![](./docs/architecture.png)
+![](./docs/architecture.jpg)
 
 ### II. Init
 
@@ -12,110 +12,104 @@ MultiSig Wallet based [GnosisSafe Wallet(old)](https://github.com/gnosis/MultiSi
 npm i
 ```
 
-### III. Run Hardhat node
+### III. Compile Contract & Run Hardhat node
 ```shell
-npx hardhat complie
+npx hardhat compile
 npx hardhat node
 ```
 
 ### IV. Deploy Contract
 
-Commands: 
+```shell
+# deploy and verify all contracts in one command (goerli: --network goerli)
+npx hardhat deploy-contracts --network localhost
+
+# deploy MultiSigWalletFactory and MultiSigWalletImplementation
+npx hardhat deploy-factory 
+npx hardhat deploy-walletImplementation 
+# deploy FallBackHandler (fallback)
+npx hardhat deploy-fallbackHandler 
+# deploy libraries (through delegateCall, MultiSigWalletImplementation can implement multicall and upgrade functions, etc.)
+## multiSendCallOnly (only allow wallet contract Call other contracts, forbid delegateCall)
+npx hardhat deploy-multiSendCallOnly 
+## multiSend (allow wallet contract delegateCall other contracts)
+npx hardhat deploy-multiSend 
+## upgrade implementation
+npx hardhat deploy-migration 
+## allow wallet contract sign 1271 message onChain
+npx hardhat deploy-signMessageLib 
+```
+
+- MultiSigWalletFactory: `0x2e5F103C1b1389C1440e383cFEF13a6C59a181c8`
+
+- MultiSigWalletImplementation: `0x49215ea0FeDbaD8D3C3799954310f302AaF5D780`
+
+- CompatibilityFallbackHandler: `0x1D4b8C421E09a17Dcf6746d6A07c5803A59Fc6FC`
+
+- MultiSendCallOnly: `0xFB72a061CbD459A91bb8c34795831cefC9EC48C4`
+
+- MultiSend: `0xa1121a7A9ea4878691313dE01BcC82882071734C`
+
+- SignMessageLib: `0xC9D25e3f6bD8520CF4F23cfA96f3eaed2e75fe1A`
+
+### V. Create MultiSigWallet
 
 ```shell
-npx hardhat --network localhost deploy-factory
-npx hardhat --network localhost deploy-implementation
+npx hardhat run scripts/0.create_wallet.ts 
 ```
 
-Output:
-
-```text
-Deploying MultiSigWalletFactory...
-MultiSigWalletFactory deployed to: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-Deployment Hash: 0x726ff4125fc9a3044913c3ce5f76b1255e55483a9af0574b3310b07598f97572
-Transaction gasUsed: 1509838
-
-Deploying MultiSigWalletImplementationBeacon...
-MultiSigWalletImplementationBeacon deployed to 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-Deployment Hash: 0xd93fc6bb7f111a3015bb3e751afa8bd6965074f74a950bd7f7d1324290941056
-MultiSigWalletImplementation deployed to: 0xCafac3dD18aC6c6e92c921884f9E4176737C052c
-Transaction gasUsed: 3877581
-```
-
-- MultiSigWalletFactory: `0x5FbDB2315678afecb367f032d93F642f64180aa3`
-
-- MultiSigWalletImplementationBeacon: `0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512`
-
-- MultiSigWalletImplementation: `0xCafac3dD18aC6c6e92c921884f9E4176737C052c`
-
-### V. Calculate MultiSigWallet Address
-
-Commands:
-
-```shell
-npx hardhat --network localhost calculate-wallet-address \
-    --factory 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
-    --implementation 0xCafac3dD18aC6c6e92c921884f9E4176737C052c \
-    --owners 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
-    --required 2 \
-    --nonce 0
-```
-
-Output:
-
-```text
-MultiSigWalletFactory is: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-MultiSigWalletImplementation is: 0xCafac3dD18aC6c6e92c921884f9E4176737C052c
-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,0x70997970C51812dc3A010C7d01b50e0d17dc79C8, 2, 0
-Calculating MultiSigWalletProxy Address...
-MultiSigWalletProxy address is: 0x0CfcF5A8F5A24F25B553E244B927ddf9315d2d78
-```
-
-MultiSigWalletProxy: `0x0CfcF5A8F5A24F25B553E244B927ddf9315d2d78`
-
-### VI. Create MultiSigWallet Address
-
-Commands:
-
-```shell
-hh --network localhost create-wallet \
-    --factory 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
-    --implementation 0xCafac3dD18aC6c6e92c921884f9E4176737C052c \
-    --owners 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266,0x70997970C51812dc3A010C7d01b50e0d17dc79C8 \
-    --required 2 \
-    --nonce 0
-```
-
-Output:
-
-```text
-Creating MultiSigWalletProxy...
-MultiSigWalletProxy deployed to: 0x0CfcF5A8F5A24F25B553E244B927ddf9315d2d78
-Deployment Hash: 0xc7706c428239dcca802563919f154e185d0a7138aa27413550bdd931d681938c
-Transaction gasUsed: 354749
-```
-
-### V. Others Scrtips
-
-Commands:
+### VI. Others Scrtips
 
 ```shell
 # Create MultiSigWallet with transaction
-npx hardhat --network localhost run scripts/0.create_wallet_with_transaction.ts
+npx hardhat run scripts/0.create_wallet_with_transaction.ts
 
 # Transfer ETH from MultiSigWallet with batchSignature method
-npx hardhat --network localhost run scripts/1.call_wallet_transferETH.ts
+npx hardhat run scripts/1.call_wallet_transferETH.ts
 
-# Process multiCall from MultiSigWallet with batchSignature method
-npx hardhat --network localhost run scripts/2.call_wallet_multicall.ts
+# Upgrade MultiSigWalletImplementation
+npx hardhat run scripts/2.upgrade_singleton.ts
 
-# Process addOwner from MultiSigWallet with batchSignature method
-npx hardhat --network localhost run scripts/2.call_wallet_addowner.ts
+# Sign 1271 message offChain
+npx hardhat run scripts/3.1271_validSig.ts
 
-# Process removeOwner from MultiSigWallet with batchSignature method
-npx hardhat --network localhost run scripts/2.call_wallet_removerowner.ts
+# Process ERC721 receive
+npx hardhat run scripts/4.nft_receive.ts
+
+# Process multiCall from MultiSigWallet
+npx hardhat run scripts/5.multiCall.ts
+
+# Process multiCall from MultiSigWallet, forbid delegateCall (recommend)
+npx hardhat run scripts/5.multiCallOnly.ts
+
+# Owner operation
+npx hardhat run scripts/6.addOwner.ts
+npx hardhat run scripts/6.removeOwner.ts
+npx hardhat run scripts/6.swapOwner.ts 
+
+# Sign 1271 message onChain
+npx hardhat run scripts/7.signMsgOnchain.ts 
+
+# Simulate transaction
+npx hardhat run scripts/8.simulate.ts 
 ```
 
-### VI. Deployed Addresses
+### VII. Verify Contract
 
-Please see [deployed.md](./deployed.md)
+```shell
+# Constructor arguments are not required if using Sourcify verification
+npx hardhat verify CONTRACT_ADDRESS "Constructor argument 1" 
+```
+
+### VIII. Test Contract
+
+```shell
+# test all contracts
+npx hardhat test
+# test CompatibilityFallbackHandler contract
+npx hardhat test test/handlers/CompatibilityFallbackHandler.spec.ts
+```
+
+### IX. Deployed Addresses
+
+<!-- Please see [deployed.md](./deployed.md) -->
